@@ -93,9 +93,7 @@ change — each emitting confirmed findings with evidence:
 |---|---|
 | `tech_fingerprint` | stack headers + robots.txt / sitemap.xml disclosed paths |
 | `header_audit` | missing/weak HTTP security headers |
-| `cookie_audit` | Set-Cookie flags (Secure / HttpOnly / SameSite) |
 | `cors_audit` | reflected / over-permissive Access-Control-Allow-Origin |
-| `tls_audit` | cert expiry, hostname/chain, legacy protocol |
 
 ### Monitoring
 

@@ -13,15 +13,12 @@ from .base import BaseAgent, AgentContext, register, REGISTRY, build_agents
 from . import asset_catalog     # noqa: F401  (registers on import)
 from . import http_probe        # noqa: F401
 from . import header_audit      # noqa: F401
-from . import cookie_audit      # noqa: F401
 from . import cors_audit        # noqa: F401
 from . import tech_fingerprint  # noqa: F401
-from . import tls_audit         # noqa: F401
 from . import specialists       # noqa: F401
 
 # Agents that form the passive, read-only "safe sweep" — real working modules.
-PASSIVE_SUITE = ["tech_fingerprint", "header_audit", "cookie_audit",
-                 "cors_audit", "tls_audit"]
+PASSIVE_SUITE = ["tech_fingerprint", "header_audit", "cors_audit"]
 
 # Register the specialist roster (the swarm's sub-agents) on import.
 specialists.register_roster()
