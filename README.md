@@ -86,14 +86,28 @@ code) halts the swarm instantly, and every request is **rate-limited per host**
 
 ### The passive suite (real, working modules)
 
-`scan`/`watch` run these read-only modules — no payloads, no auth, no state
-change — each emitting confirmed findings with evidence:
+`scan`/`watch` run these modules — each emitting findings with evidence.
+
+**Passive (read-only recon & checks — no payloads, no state change):**
 
 | module | checks |
 |---|---|
+| `subdomain_recon` | subdomain discovery via Certificate Transparency (crt.sh); OSINT, no target contact |
 | `tech_fingerprint` | stack headers + robots.txt / sitemap.xml disclosed paths |
+| `js_endpoints` | endpoints/API routes + possible leaked secrets mined from page JavaScript |
 | `header_audit` | missing/weak HTTP security headers |
 | `cors_audit` | reflected / over-permissive Access-Control-Allow-Origin |
+
+**Light-active (one benign probe to the target; still read-only):**
+
+| module | checks |
+|---|---|
+| `open_redirect` | one off-domain probe per redirect param, no redirect followed; confirms only on an actual external 3xx |
+
+`scan` runs passive + active by default; `--passive-only` drops the active set.
+`js_endpoints` secret hits are emitted as **needs-review** (noisy class — you
+confirm), and `subdomain_recon` only maps in-scope hosts, feeding the monitor
+diff so new subdomains alert the moment a certificate for them is logged.
 
 ### Monitoring
 

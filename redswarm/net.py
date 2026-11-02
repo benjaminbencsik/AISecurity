@@ -55,13 +55,25 @@ class HttpResult(dict):
     def body(self): return self.get("body", "")
     @property
     def set_cookies(self): return self.get("set_cookies", [])
+    @property
+    def location(self): return self.get("location", "")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Stops urllib from auto-following 3xx so the caller can inspect Location
+    (needed for open-redirect detection)."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 def safe_get(scope: ScopeGuard, url: str, limiter: RateLimiter | None = None,
              headers: dict | None = None, timeout: int = 10,
-             max_body: int = _MAX_BODY, method: str = "GET") -> HttpResult:
+             max_body: int = _MAX_BODY, method: str = "GET",
+             allow_redirects: bool = True) -> HttpResult:
     """Scope-checked, rate-limited, read-only request. Raises on scope violation;
-    network errors are returned as {'error': ...} so callers can report gracefully."""
+    network errors are returned as {'error': ...} so callers can report gracefully.
+    With allow_redirects=False, a 3xx is returned as-is (with its Location) instead
+    of being followed."""
     if "://" not in url:
         url = "https://" + url
     scope.assert_in_scope(url)
@@ -70,24 +82,33 @@ def safe_get(scope: ScopeGuard, url: str, limiter: RateLimiter | None = None,
         limiter.acquire(host)
     req = urllib.request.Request(url, method=method,
                                  headers={"User-Agent": _UA, **(headers or {})})
+    opener = (urllib.request.build_opener(_NoRedirect)
+              if not allow_redirects else urllib.request.build_opener())
+
+    def _result(resp, status) -> HttpResult:
+        hdrs = {k.lower(): v for k, v in resp.headers.items()} if resp.headers else {}
+        try:
+            cookies = resp.headers.get_all("Set-Cookie") or [] if resp.headers else []
+        except Exception:
+            cookies = []
+        body = ""
+        try:
+            body = resp.read(max_body).decode("utf-8", "replace")
+        except Exception:
+            pass
+        return HttpResult(url=url, status=status, headers=hdrs,
+                          set_cookies=cookies, body=body,
+                          location=hdrs.get("location", ""))
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        resp = opener.open(req, timeout=timeout)
+        if allow_redirects:
             final = urlparse(resp.geturl()).hostname
             if final and final != host:
-                scope.assert_in_scope(resp.geturl())  # don't follow a redirect out of scope
-            body = resp.read(max_body).decode("utf-8", "replace")
-            try:
-                cookies = resp.headers.get_all("Set-Cookie") or []
-            except Exception:
-                cookies = []
-            return HttpResult(url=url, status=resp.status,
-                              headers={k.lower(): v for k, v in resp.headers.items()},
-                              set_cookies=cookies, body=body)
-    except (urllib.error.HTTPError) as e:
-        # HTTP errors still carry headers worth auditing
-        hdrs = {k.lower(): v for k, v in (e.headers or {}).items()} if e.headers else {}
-        return HttpResult(url=url, status=getattr(e, "code", 0), headers=hdrs,
-                          set_cookies=[], body="", error=f"HTTP {getattr(e,'code','?')}")
+                scope.assert_in_scope(resp.geturl())
+        return _result(resp, resp.status)
+    except urllib.error.HTTPError as e:
+        # 3xx-with-no-follow and 4xx/5xx land here; both carry headers/Location.
+        return _result(e, getattr(e, "code", 0))
     except Exception as e:  # noqa: BLE001
         return HttpResult(url=url, status=0, headers={}, set_cookies=[], body="",
-                          error=str(e))
+                          location="", error=str(e))

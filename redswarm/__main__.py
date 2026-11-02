@@ -26,7 +26,7 @@ from .orchestrator import Orchestrator
 from .reporting import ReportBuilder
 from .monitor import Monitor, webhook_notifier
 from .models import Task, PTESStage
-from .agents import PASSIVE_SUITE
+from .agents import PASSIVE_SUITE, SCAN_SUITE
 
 
 def _boot(scope_path: str, data_dir: str, rps: float):
@@ -39,10 +39,13 @@ def _boot(scope_path: str, data_dir: str, rps: float):
     return scope, store, audit, approvals, orch
 
 
-def _submit_passive(orch, approvals, target: str, authorize: bool):
+_RECON_AGENTS = {"subdomain_recon", "tech_fingerprint", "js_endpoints"}
+
+
+def _submit_suite(orch, approvals, target: str, authorize: bool, suite):
     ids = []
-    for agent in PASSIVE_SUITE:
-        stage = (PTESStage.INTELLIGENCE_GATHERING if agent == "tech_fingerprint"
+    for agent in suite:
+        stage = (PTESStage.INTELLIGENCE_GATHERING if agent in _RECON_AGENTS
                  else PTESStage.VULNERABILITY_ANALYSIS)
         t = Task(objective=f"{agent} on {target}", stage=stage, agent=agent, target=target)
         orch.submit(t)
@@ -59,7 +62,8 @@ def cmd_scan(args):
     if not scope.allowed(args.target):
         print(f"[scope] {args.target} is NOT in scope — refusing.", file=sys.stderr)
         return 2
-    _submit_passive(orch, approvals, args.target, args.authorize)
+    suite = PASSIVE_SUITE if getattr(args, "passive_only", False) else SCAN_SUITE
+    _submit_suite(orch, approvals, args.target, args.authorize, suite)
     if not args.authorize:
         print("Tasks submitted but gated. Re-run with --authorize to run them.")
         return 0
@@ -90,7 +94,7 @@ def cmd_watch(args):
             # fresh tasks each cycle; gated passive suite auto-approved by --authorize
             for a in list(approvals.pending()):
                 approvals.deny(a["id"], note="superseded by new watch cycle")
-            _submit_passive(orch, approvals, args.target, args.authorize)
+            _submit_suite(orch, approvals, args.target, args.authorize, SCAN_SUITE)
             orch.run_until_idle()
             d = mon.diff()
             if d.get("baseline"):
@@ -137,6 +141,8 @@ def main(argv=None):
     sc.add_argument("--authorize", action="store_true",
                     help="assert written authorization; approves gated passive tasks")
     sc.add_argument("--report", help="write a Markdown report to this path")
+    sc.add_argument("--passive-only", action="store_true",
+                    help="skip light-active checks (open_redirect)")
     sc.set_defaults(fn=cmd_scan)
 
     wt = sub.add_parser("watch", help="monitor a target on an interval and diff")

@@ -30,7 +30,6 @@ _ROSTER = [
     ("network_infra", "Network & Infrastructure", PTESStage.INTELLIGENCE_GATHERING, False),
     # Threat modeling
     ("threat_model", "Threat Modeling", PTESStage.THREAT_MODELING, False),
-    ("subdomain_enum", "Subdomain Enumeration", PTESStage.INTELLIGENCE_GATHERING, False),
     # Vulnerability analysis
     ("web_app", "Web Application", PTESStage.VULNERABILITY_ANALYSIS, False),
     ("api_identity", "API & Identity", PTESStage.VULNERABILITY_ANALYSIS, False),

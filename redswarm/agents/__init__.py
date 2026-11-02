@@ -15,10 +15,18 @@ from . import http_probe        # noqa: F401
 from . import header_audit      # noqa: F401
 from . import cors_audit        # noqa: F401
 from . import tech_fingerprint  # noqa: F401
+from . import subdomain_recon   # noqa: F401
+from . import js_endpoints      # noqa: F401
+from . import open_redirect     # noqa: F401
 from . import specialists       # noqa: F401
 
-# Agents that form the passive, read-only "safe sweep" — real working modules.
-PASSIVE_SUITE = ["tech_fingerprint", "header_audit", "cors_audit"]
+# Passive, read-only recon + checks (no payloads, no state change).
+PASSIVE_SUITE = ["subdomain_recon", "tech_fingerprint", "js_endpoints",
+                 "header_audit", "cors_audit"]
+# Light-active checks that send a benign probe (still read-only to the target).
+ACTIVE_SUITE = ["open_redirect"]
+# Default for `scan` — everything; --passive-only drops ACTIVE_SUITE.
+SCAN_SUITE = PASSIVE_SUITE + ACTIVE_SUITE
 
 # Register the specialist roster (the swarm's sub-agents) on import.
 specialists.register_roster()
