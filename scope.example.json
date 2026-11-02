@@ -1,0 +1,8 @@
+{
+  "name": "Secure Bank lab (authorized)",
+  "domains": ["*.securebank.local", "securebank.local"],
+  "cidrs": ["127.0.0.1/32", "10.10.0.0/24"],
+  "url_prefixes": ["http://127.0.0.1:8081/"],
+  "exclude_domains": ["prod.securebank.local", "admin.securebank.local"],
+  "exclude_cidrs": ["10.10.0.1/32"]
+}

@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RedSwarm · Command Center</title>
+<style>
+  :root{
+    --bg:#090c10; --bg2:#0b0f14; --panel:#11161d; --panel2:#161d26; --line:#1e2730;
+    --ink:#e4ebf1; --muted:#8392a1; --faint:#59efff00; --dim:#5b6673;
+    --accent:#2fe0a6; --accent2:#1b9d86; --blue:#5aa9ff;
+    --crit:#ff4d6d; --high:#ff8a4c; --medium:#ffce5a; --low:#4db5ff; --info:#7f8aa3;
+    --ok:#2fe0a6; --warn:#ffce5a; --bad:#ff5c6c;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:13px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  a{color:var(--accent)}
+  .app{display:grid;grid-template-columns:216px 1fr 322px;height:100vh}
+  @media(max-width:1200px){.app{grid-template-columns:200px 1fr}.inspect{display:none}}
+
+  /* ---- left nav ---- */
+  .nav{background:var(--bg2);border-right:1px solid var(--line);display:flex;
+       flex-direction:column;overflow:auto}
+  .brand{display:flex;align-items:center;gap:.6rem;padding:1rem 1rem .9rem}
+  .mark{width:26px;height:26px;border-radius:7px;
+        background:radial-gradient(circle at 30% 30%,var(--accent),var(--accent2));
+        box-shadow:0 0 16px -2px var(--accent2)}
+  .brand b{font-size:14px;letter-spacing:.14em}
+  .brand span{display:block;font-size:10px;color:var(--muted);letter-spacing:.22em}
+  .navsec{padding:.5rem 1rem .2rem;font-size:10px;letter-spacing:.14em;color:var(--dim)}
+  .navitem{display:flex;align-items:center;gap:.55rem;padding:.46rem 1rem;color:var(--muted);
+           cursor:pointer;border-left:2px solid transparent;font-size:12.5px}
+  .navitem:hover{background:var(--panel);color:var(--ink)}
+  .navitem.on{background:var(--panel);color:var(--ink);border-left-color:var(--accent)}
+  .navitem .ico{width:15px;text-align:center;opacity:.8}
+  .navitem .b{margin-left:auto;background:var(--panel2);border-radius:999px;padding:0 .4rem;
+              font-size:10px;color:var(--ink)}
+  .navfoot{margin-top:auto;padding:.8rem 1rem;border-top:1px solid var(--line);font-size:11px}
+  .livepill{display:flex;align-items:center;gap:.4rem;color:var(--muted)}
+
+  /* ---- main ---- */
+  .main{display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  .topbar{border-bottom:1px solid var(--line);padding:.7rem 1.1rem;background:var(--bg2)}
+  .crumbs{font-size:11px;color:var(--muted);display:flex;gap:.4rem;align-items:center}
+  .toprow{display:flex;align-items:center;gap:.8rem;margin-top:.35rem}
+  .toprow h1{font-size:18px;margin:0;font-weight:600}
+  .chip{font-size:10.5px;padding:.12rem .5rem;border-radius:5px;border:1px solid var(--line);
+        color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .chip.ok{color:var(--ok);border-color:var(--accent2)}
+  .sevcount{display:flex;gap:.5rem;margin-left:auto;align-items:center}
+  .sevcount .s{display:flex;align-items:center;gap:.3rem;font-size:12px}
+  .sevcount .d{width:8px;height:8px;border-radius:50%}
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+       padding:.4rem .7rem;border-radius:7px;cursor:pointer;font-size:12px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.primary{background:var(--accent);color:#04120d;border-color:var(--accent);font-weight:600}
+  .tgl{display:flex;gap:.4rem;align-items:center}
+  .seg{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+  .seg button{background:transparent;border:0;color:var(--muted);padding:.3rem .6rem;
+              cursor:pointer;font-size:11.5px}
+  .seg button.on{background:var(--panel2);color:var(--ink)}
+  .content{flex:1;overflow:auto;padding:1rem;min-height:0}
+
+  /* ---- swarm graph ---- */
+  .graphwrap{background:
+      radial-gradient(1200px 500px at 50% -10%,rgba(47,224,166,.06),transparent),
+      var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+      display:flex;flex-direction:column;height:100%}
+  .graphhead{display:flex;align-items:center;gap:.6rem;padding:.6rem .9rem;border-bottom:1px solid var(--line)}
+  .graphhead .t{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  svg{width:100%;height:100%;display:block}
+  .edge{fill:none;stroke:#223}
+  .edge.active{stroke:var(--accent2)}
+  .node rect{rx:8;stroke:var(--line);fill:var(--panel2)}
+  .node text.l{fill:var(--ink);font-size:11px;font-weight:600}
+  .node text.s{fill:var(--dim);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase}
+  .node{cursor:pointer}
+  .node.idle rect{stroke:var(--line)}
+  .node.done rect{stroke:var(--accent2)}
+  .node.running rect{stroke:var(--accent);filter:drop-shadow(0 0 6px rgba(47,224,166,.6))}
+  .node.awaiting_approval rect{stroke:var(--warn)}
+  .node.failed rect,.node.denied rect{stroke:var(--bad)}
+  .node.sel rect{stroke:var(--blue);stroke-width:2}
+  .node.gated .gate{fill:var(--warn)}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+  .node.running .dot{animation:pulse 1.1s ease-in-out infinite}
+  .rootnode rect{fill:#0f2a24;stroke:var(--accent)}
+  .rootnode text{fill:var(--accent);font-weight:700;font-size:12px}
+
+  /* scrubber */
+  .scrub{display:flex;align-items:center;gap:.7rem;padding:.55rem .9rem;border-top:1px solid var(--line)}
+  .scrub button{background:var(--panel2);border:1px solid var(--line);color:var(--ink);
+                width:30px;height:28px;border-radius:7px;cursor:pointer}
+  .scrub input[type=range]{flex:1;accent-color:var(--accent)}
+  .scrub .n{font-size:11px;color:var(--muted);min-width:70px;text-align:right}
+
+  /* generic panels/lists */
+  .grid{display:grid;gap:1rem}
+  .cols3{grid-template-columns:repeat(3,1fr)}
+  .cols2{grid-template-columns:repeat(2,1fr)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+  .card h3{margin:0;padding:.6rem .85rem;font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+           color:var(--muted);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:.5rem}
+  .card .b{padding:.4rem .6rem;max-height:62vh;overflow:auto}
+  .row{padding:.5rem .55rem;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .muted{color:var(--muted)} .faint{color:var(--dim)}
+  .tag{display:inline-block;padding:.03rem .4rem;border-radius:5px;font-size:10.5px;border:1px solid var(--line);color:var(--muted)}
+  .sev{font-weight:700;padding:.03rem .4rem;border-radius:5px;font-size:10.5px;color:#06101f}
+  .sev.critical{background:var(--crit)} .sev.high{background:var(--high)}
+  .sev.medium{background:var(--medium)} .sev.low{background:var(--low)} .sev.info{background:var(--info)}
+  .st{font-size:10.5px;padding:.03rem .4rem;border-radius:5px;border:1px solid var(--line)}
+  .st.confirmed,.st.done{color:var(--ok);border-color:var(--accent2)}
+  .st.false_positive{color:var(--dim)} .st.needs_review{color:var(--warn);border-color:var(--warn)}
+  .st.unvalidated,.st.blocked,.st.pending{color:var(--muted)}
+  .st.running{color:var(--accent);border-color:var(--accent)}
+  .st.failed,.st.denied{color:var(--bad);border-color:var(--bad)}
+  .st.awaiting_approval{color:var(--warn);border-color:var(--warn)}
+  .tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.7rem}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.8rem}
+  .tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .tile .v{font-size:26px;font-weight:700;margin-top:.2rem}
+  details summary{cursor:pointer;color:var(--accent);font-size:11.5px}
+  pre{white-space:pre-wrap;background:#0a0d12;border:1px solid var(--line);border-radius:7px;
+      padding:.5rem;font-size:11px;max-height:200px;overflow:auto}
+  .board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:.7rem;overflow:auto}
+  .bcol{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-height:120px}
+  .bcol h4{margin:0;padding:.5rem .6rem;font-size:10.5px;text-transform:uppercase;color:var(--muted);
+           border-bottom:1px solid var(--line);letter-spacing:.05em}
+  .bcol .b{padding:.4rem}
+  .tcard{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:.4rem .5rem;margin:.35rem 0;font-size:11.5px}
+
+  /* ---- inspector ---- */
+  .inspect{background:var(--bg2);border-left:1px solid var(--line);overflow:auto;padding:.9rem}
+  .ipanel{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:.8rem}
+  .ipanel h3{margin:0;padding:.55rem .8rem;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+             color:var(--muted);border-bottom:1px solid var(--line)}
+  .ipanel .b{padding:.5rem .7rem}
+  .sup{display:flex;align-items:center;gap:.6rem;padding:.6rem .7rem}
+  .sup .av{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+           display:flex;align-items:center;justify-content:center;color:#04120d;font-weight:700}
+  .badge{font-size:9.5px;letter-spacing:.08em;border:1px solid var(--accent2);color:var(--accent);
+         border-radius:5px;padding:.05rem .35rem;text-transform:uppercase}
+  .msg{display:flex;justify-content:space-between;font-size:11.5px;padding:.3rem 0;border-bottom:1px solid var(--line)}
+  .empty{color:var(--dim);padding:1rem;text-align:center;font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- LEFT NAV -->
+  <aside class="nav">
+    <div class="brand"><div class="mark"></div>
+      <div><b>REDSWARM</b><span>COMMAND CENTER</span></div></div>
+    <div class="navsec">OPERATIONS</div>
+    <div class="navitem on" data-view="swarm"><span class="ico">◈</span>Agent Swarm</div>
+    <div class="navitem" data-view="overview"><span class="ico">▦</span>Command Centre</div>
+    <div class="navitem" data-view="board"><span class="ico">▤</span>PTES Board</div>
+    <div class="navitem" data-view="approvals"><span class="ico">✓</span>Approvals <span class="b" id="nApprovals">0</span></div>
+    <div class="navsec">INTELLIGENCE</div>
+    <div class="navitem" data-view="surface"><span class="ico">◎</span>Attack Surface <span class="b" id="nSurface">0</span></div>
+    <div class="navitem" data-view="vulns"><span class="ico">⚠</span>Vulnerabilities <span class="b" id="nVulns">0</span></div>
+    <div class="navitem" data-view="evidence"><span class="ico">≡</span>Evidence &amp; Activity</div>
+    <div class="navsec">DELIVERY</div>
+    <div class="navitem" data-view="report"><span class="ico">▣</span>Report Builder</div>
+    <div class="navitem" data-view="agents"><span class="ico">✦</span>Skills &amp; Agents <span class="b" id="nAgents">0</span></div>
+    <div class="navfoot">
+      <div class="livepill" id="liveDot"><span class="d" style="width:8px;height:8px;border-radius:50%;background:var(--dim)"></span>connecting…</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <div class="crumbs"><span>RedSwarm</span><span>/</span><span id="crumbView">Agent Swarm</span></div>
+      <div class="toprow">
+        <h1 id="viewTitle">Agent Swarm Monitor</h1>
+        <span class="chip ok" id="engStatus">engaged</span>
+        <span class="chip mono" id="engTarget">—</span>
+        <div class="sevcount" id="sevCount"></div>
+      </div>
+      <div class="toprow">
+        <div class="seg" id="viewSeg">
+          <button class="on" data-view="swarm">Swarm</button>
+          <button data-view="board">PTES</button>
+          <button data-view="vulns">Vulns</button>
+          <button data-view="surface">Surface</button>
+          <button data-view="evidence">Evidence</button>
+        </div>
+        <span class="faint" id="lastUpdate" style="font-size:11px"></span>
+        <div style="margin-left:auto" class="tgl">
+          <button class="btn" id="reportBtn">Report</button>
+          <button class="btn" id="tickBtn">▶ Tick once</button>
+          <button class="btn primary" id="autoBtn">▶ Run swarm</button>
+        </div>
+      </div>
+    </header>
+    <section class="content" id="content"></section>
+  </main>
+
+  <!-- INSPECTOR -->
+  <aside class="inspect" id="inspect"></aside>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const esc = s => (s??"").toString().replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ago = ts => { const d=Date.now()/1000-ts;
+  return d<60?Math.floor(d)+"s":d<3600?Math.floor(d/60)+"m":Math.floor(d/3600)+"h"; };
+
+let STATE=null, VIEW="swarm", SELECTED=null, AUTO=false;
+let SCRUB=null, PLAYING=false, playTimer=null;
+
+const STAGES=["pre_engagement","intelligence_gathering","threat_modeling",
+  "vulnerability_analysis","exploitation","post_exploitation","reporting"];
+const STAGE_LABEL={pre_engagement:"Pre-engagement",intelligence_gathering:"Intelligence",
+  threat_modeling:"Threat modeling",vulnerability_analysis:"Vuln analysis",
+  exploitation:"Exploitation",post_exploitation:"Post-exploitation",reporting:"Reporting"};
+const VIEW_TITLE={swarm:"Agent Swarm Monitor",overview:"Command Centre",board:"PTES Board",
+  approvals:"Approvals",surface:"Attack Surface",vulns:"Vulnerabilities",
+  evidence:"Evidence & Activity",report:"Report Builder",agents:"Skills & Agents"};
+
+async function post(path, body){
+  const r = await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},
+    body: body?JSON.stringify(body):null});
+  try{ return await r.json(); }catch(e){ return {}; }
+}
+
+/* ---- status derivation ---- */
+function nodeStatus(name, tasks){
+  const mine = tasks.filter(t=>t.agent===name);
+  if(!mine.length) return "idle";
+  const rank={running:5,awaiting_approval:4,failed:3,denied:3,pending:2,blocked:2,done:1};
+  let best="idle",bv=-1;
+  mine.forEach(t=>{ const v=rank[t.status]??0; if(v>bv){bv=v;best=t.status;} });
+  if(best==="pending"||best==="blocked") return "idle";
+  return best;
+}
+
+/* ---- swarm graph ---- */
+function layout(nodes){
+  const W=1000, topY=118, bandH=94, cardW=132, cardH=40, gap=22;
+  const byStage={}; STAGES.forEach(s=>byStage[s]=[]);
+  nodes.forEach(n=> (byStage[n.stage]||(byStage[n.stage]=[])).push(n));
+  const bands = STAGES.filter(s=>byStage[s].length);
+  let y=topY;
+  bands.forEach(s=>{
+    const row=byStage[s];
+    const tw=row.length*cardW+(row.length-1)*gap;
+    let x=(W-tw)/2;
+    row.forEach(n=>{ n.x=x;n.y=y;n.w=cardW;n.h=cardH; x+=cardW+gap; });
+    y+=bandH;
+  });
+  return {W,H:y+10,bands,byStage,root:{x:W/2-72,y:40,w:144,h:40}};
+}
+function renderSwarm(){
+  const s=STATE;
+  const nodes=s.agents.map(a=>({...a, status:nodeStatus(a.name,s.tasks)}));
+  const L=layout(nodes);
+  const rc={x:L.root.x+L.root.w/2, y:L.root.y+L.root.h};
+  // event-at-scrub highlighting
+  const upto = SCRUB==null ? s.activity.length : SCRUB;
+  const curEvent = (SCRUB!=null && SCRUB>0) ? s.activity[Math.min(SCRUB-1,s.activity.length-1)] : null;
+
+  const edges=nodes.map(n=>{
+    const nx=n.x+n.w/2, ny=n.y;
+    const act=(n.status==="running"||n.status==="done");
+    const mid=(rc.y+ny)/2;
+    return `<path class="edge ${act?'active':''}" d="M${rc.x},${rc.y} C${rc.x},${mid} ${nx},${mid} ${nx},${ny}" stroke-width="${act?1.3:0.8}" opacity="${act?0.8:0.4}"/>`;
+  }).join("");
+
+  const dotColor={idle:"var(--dim)",done:"var(--ok)",running:"var(--accent)",
+    awaiting_approval:"var(--warn)",failed:"var(--bad)",denied:"var(--bad)"};
+  const nodeSvg=nodes.map(n=>{
+    const sel=n.name===SELECTED?"sel":"";
+    const gate=n.requires_approval?"gated":"";
+    const hot=curEvent&&curEvent.agent===n.name?' style="filter:drop-shadow(0 0 7px rgba(90,169,255,.7))"':'';
+    return `<g class="node ${n.status} ${sel} ${gate}" data-node="${esc(n.name)}" transform="translate(${n.x},${n.y})"${hot}>
+      <rect width="${n.w}" height="${n.h}"></rect>
+      <circle class="dot" cx="11" cy="${n.h/2}" r="4" fill="${dotColor[n.status]||'var(--dim)'}"></circle>
+      ${n.requires_approval?`<circle class="gate" cx="${n.w-9}" cy="10" r="3"></circle>`:""}
+      <text class="l" x="22" y="${n.h/2-2}">${esc(n.label)}</text>
+      <text class="s" x="22" y="${n.h/2+11}">${esc(STAGE_LABEL[n.stage]||n.stage)}</text>
+    </g>`;
+  }).join("");
+
+  const root=`<g class="rootnode" transform="translate(${L.root.x},${L.root.y})">
+    <rect width="${L.root.w}" height="${L.root.h}" rx="9"></rect>
+    <text x="${L.root.w/2}" y="${L.root.h/2+4}" text-anchor="middle">◈ ROOT SUPERVISOR</text></g>`;
+
+  const n=s.activity.length;
+  $("#content").innerHTML=`
+    <div class="graphwrap">
+      <div class="graphhead">
+        <span class="t">Swarm · ${nodes.length} nodes</span>
+        <span class="tag">${s.inflight||0} active</span>
+        <span class="faint" style="margin-left:auto;font-size:11px">root delegates scoped tasks ▸ specialists ▸ gated actions wait for you</span>
+      </div>
+      <svg viewBox="0 0 ${L.W} ${L.H}" preserveAspectRatio="xMidYMid meet">
+        ${edges}${root}${nodeSvg}
+      </svg>
+      <div class="scrub">
+        <button id="playBtn">${PLAYING?"❚❚":"▶"}</button>
+        <input type="range" id="scrubRange" min="0" max="${n}" value="${upto}">
+        <span class="n mono">${upto} / ${n} events</span>
+        <button id="liveBtn" class="btn" style="width:auto;height:auto;padding:.25rem .5rem">Live</button>
+      </div>
+    </div>`;
+
+  $$("#content .node").forEach(g=> g.onclick=()=>{ SELECTED=g.dataset.node; renderInspect(); renderSwarm(); });
+  $("#scrubRange").oninput=e=>{ SCRUB=+e.target.value>=n?null:+e.target.value; stopPlay(); renderSwarm(); renderInspect(); };
+  $("#playBtn").onclick=togglePlay;
+  $("#liveBtn").onclick=()=>{ SCRUB=null; stopPlay(); renderSwarm(); renderInspect(); };
+}
+function togglePlay(){ PLAYING?stopPlay():startPlay(); }
+function startPlay(){
+  const n=STATE.activity.length; if(!n) return;
+  PLAYING=true; if(SCRUB==null||SCRUB>=n) SCRUB=0;
+  playTimer=setInterval(()=>{
+    SCRUB=(SCRUB??0)+1;
+    if(SCRUB>=n){ SCRUB=null; stopPlay(); renderSwarm(); renderInspect(); return; }
+    renderSwarm(); renderInspect();
+  },280);
+  renderSwarm();
+}
+function stopPlay(){ PLAYING=false; if(playTimer){clearInterval(playTimer);playTimer=null;} }
+
+/* ---- other views ---- */
+function sevOrder(a,b){const o={critical:4,high:3,medium:2,low:1,info:0};return o[b.severity]-o[a.severity];}
+function renderVulns(){
+  const list=[...STATE.findings].sort(sevOrder);
+  $("#content").innerHTML=`<div class="card"><h3>Vulnerabilities <span class="tag">${list.length}</span></h3>
+    <div class="b" style="max-height:none">${list.map(f=>`
+      <div class="row">
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <span class="sev ${esc(f.severity)}">${esc(f.severity.toUpperCase())}</span>
+          <b>${esc(f.title)}</b><span class="st ${esc(f.status)}" style="margin-left:auto">${esc(f.status)}</span>
+        </div>
+        <div class="muted mono" style="font-size:11px">${esc(f.target)}</div>
+        ${f.description?`<div style="margin-top:.25rem">${esc(f.description)}</div>`:""}
+        <div class="faint" style="font-size:10.5px;margin-top:.25rem">agent <span class="mono">${esc(f.agent||"—")}</span> · task <span class="mono">${esc(f.task_id||"—")}</span> · ${esc(f.id)}</div>
+        ${f.reproduction?`<details><summary>Reproduction</summary><pre>${esc(f.reproduction)}</pre></details>`:""}
+        ${(f.evidence||[]).length?`<details><summary>Evidence (${f.evidence.length})</summary>${f.evidence.map(e=>`<pre>${esc(e.kind)} · ${esc(e.id)}\n\n${esc(e.content)}</pre>`).join("")}</details>`:""}
+      </div>`).join("")||'<div class="empty">No findings yet.</div>'}</div></div>`;
+}
+function renderSurface(){
+  const list=STATE.surface;
+  $("#content").innerHTML=`<div class="card"><h3>Attack Surface <span class="tag">${list.length}</span></h3>
+    <div class="b" style="max-height:none">${list.map(n=>`<div class="row" style="display:flex;gap:.5rem;align-items:center">
+      <span class="tag">${esc(n.kind)}</span><span class="mono">${esc(n.label)}</span>
+      ${n.meta&&n.meta.via?`<span class="faint" style="margin-left:auto;font-size:10.5px">via ${esc(n.meta.via)}</span>`:""}</div>`).join("")||'<div class="empty">No mapped assets.</div>'}</div></div>`;
+}
+function renderApprovals(){
+  const list=STATE.approvals_pending;
+  $("#content").innerHTML=`<div class="card"><h3>Pending approvals <span class="tag">${list.length}</span></h3>
+    <div class="b" style="max-height:none">${list.map(a=>`<div class="row">
+      <div><b>${esc(a.agent)}</b> → <span class="mono">${esc(a.target||"—")}</span></div>
+      <div class="muted">${esc(a.objective)}</div>
+      <div style="display:flex;gap:.5rem;margin-top:.5rem">
+        <button class="btn primary" data-approve="${esc(a.id)}">Approve</button>
+        <button class="btn" data-deny="${esc(a.id)}" style="border-color:var(--bad);color:var(--bad)">Deny</button></div>
+    </div>`).join("")||'<div class="empty">Nothing waiting. Gated actions will appear here for your decision before the swarm runs them.</div>'}</div></div>`;
+  $$("[data-approve]").forEach(b=>b.onclick=async()=>{await post("/api/approvals/approve",{id:b.dataset.approve});refresh();});
+  $$("[data-deny]").forEach(b=>b.onclick=async()=>{await post("/api/approvals/deny",{id:b.dataset.deny});refresh();});
+}
+function renderBoard(){
+  const byStage={}; STAGES.forEach(s=>byStage[s]=[]);
+  STATE.tasks.forEach(t=>(byStage[t.stage]||(byStage[t.stage]=[])).push(t));
+  const cols=STAGES.filter(s=>byStage[s].length);
+  $("#content").innerHTML=`<div class="board">${cols.map(s=>`<div class="bcol">
+    <h4>${esc(STAGE_LABEL[s]||s)} · ${byStage[s].length}</h4><div class="b">${byStage[s].map(t=>`
+      <div class="tcard"><div style="display:flex;gap:.4rem;align-items:center">
+        <span class="mono muted" style="font-size:10.5px">${esc(t.agent)}</span>
+        <span class="st ${esc(t.status)}" style="margin-left:auto">${esc(t.status)}</span></div>
+        <div style="margin-top:.2rem">${esc(t.objective)}</div>
+        ${t.error?`<div style="color:var(--bad);font-size:10.5px">${esc(t.error)}</div>`:""}</div>`).join("")}</div></div>`).join("")}</div>`;
+}
+function renderEvidence(){
+  const act=STATE.activity, aud=STATE.audit_tail;
+  $("#content").innerHTML=`<div class="grid cols2">
+    <div class="card"><h3>Activity</h3><div class="b">${act.slice().reverse().map(a=>`
+      <div class="row" style="display:grid;grid-template-columns:auto 1fr auto;gap:.5rem;align-items:center">
+        <span style="width:7px;height:7px;border-radius:50%;background:${a.status==='done'?'var(--ok)':a.status==='running'?'var(--accent)':a.status==='failed'||a.status==='denied'?'var(--bad)':'var(--dim)'}"></span>
+        <span><span style="color:var(--accent)">${esc(a.agent)}</span> <span class="muted">${esc(a.message)}</span></span>
+        <span class="faint" style="font-size:10.5px">${ago(a.ts)}</span></div>`).join("")||'<div class="empty">Idle.</div>'}</div></div>
+    <div class="card"><h3>Audit trail <span class="tag" id="auditState"></span></h3><div class="b">${aud.slice().reverse().map(e=>`
+      <div class="row" style="font-size:11px"><span class="mono" style="color:var(--accent)">${esc(e.action)}</span>
+        <span class="faint"> ${ago(e.ts)}</span><div class="muted mono">${esc(e.actor)}${e.target?" · "+esc(e.target):""}</div></div>`).join("")||'<div class="empty">No events.</div>'}</div></div>
+  </div>`;
+}
+function renderAgents(){
+  const by={}; STATE.agents.forEach(a=>(by[a.stage]||(by[a.stage]=[])).push(a));
+  $("#content").innerHTML=`<div class="grid cols3">${STAGES.filter(s=>by[s]).map(s=>`
+    <div class="card"><h3>${esc(STAGE_LABEL[s]||s)}</h3><div class="b">${by[s].map(a=>`
+      <div class="row"><div style="display:flex;gap:.4rem;align-items:center"><b>${esc(a.label)}</b>
+        ${a.requires_approval?'<span class="tag" style="color:var(--warn);border-color:var(--warn)">gated</span>':''}
+        <span class="st ${nodeStatus(a.name,STATE.tasks)}" style="margin-left:auto">${nodeStatus(a.name,STATE.tasks)}</span></div>
+        <div class="muted" style="font-size:11px;margin-top:.2rem">${esc(a.description)}</div></div>`).join("")}</div></div>`).join("")}</div>`;
+}
+function renderOverview(){
+  const s=STATE, c=s.severity_counts||{};
+  const done=s.tasks.filter(t=>t.status==='done').length;
+  $("#content").innerHTML=`<div class="tiles" style="margin-bottom:1rem">
+    <div class="tile"><div class="k">Tasks done</div><div class="v">${done}<span class="muted" style="font-size:14px">/${s.tasks.length}</span></div></div>
+    <div class="tile"><div class="k">Findings</div><div class="v">${s.findings.length}</div></div>
+    <div class="tile"><div class="k">Pending approvals</div><div class="v" style="color:var(--warn)">${s.approvals_pending.length}</div></div>
+    <div class="tile"><div class="k">Assets mapped</div><div class="v">${s.surface.length}</div></div>
+  </div>
+  <div class="grid cols2">
+    <div class="card"><h3>Severity</h3><div class="b">${["critical","high","medium","low","info"].map(k=>`
+      <div class="row" style="display:flex;align-items:center;gap:.5rem"><span class="d" style="width:9px;height:9px;border-radius:50%;background:var(--${k})"></span>
+      <span style="text-transform:capitalize">${k}</span><b style="margin-left:auto">${c[k]||0}</b></div>`).join("")}</div></div>
+    <div class="card"><h3>Recent activity</h3><div class="b">${s.activity.slice(-12).reverse().map(a=>`
+      <div class="row" style="font-size:11.5px"><span style="color:var(--accent)">${esc(a.agent)}</span> <span class="muted">${esc(a.message)}</span>
+      <span class="faint" style="float:right">${ago(a.ts)}</span></div>`).join("")||'<div class="empty">Idle.</div>'}</div></div>
+  </div>`;
+}
+
+function renderContent(){
+  if(VIEW==="swarm") renderSwarm();
+  else if(VIEW==="vulns") renderVulns();
+  else if(VIEW==="surface") renderSurface();
+  else if(VIEW==="approvals") renderApprovals();
+  else if(VIEW==="board") renderBoard();
+  else if(VIEW==="evidence") renderEvidence();
+  else if(VIEW==="agents") renderAgents();
+  else if(VIEW==="overview") renderOverview();
+  else if(VIEW==="report"){ window.open("/api/report","_blank"); VIEW="swarm"; renderContent(); syncNav(); }
+}
+
+/* ---- inspector ---- */
+function renderInspect(){
+  const s=STATE; if(!s) return;
+  const sup=s.supervisor||{name:"Root Supervisor"};
+  let selBlock=`<div class="ipanel"><h3>Selection</h3><div class="b"><div class="empty">Click a node in the swarm to inspect it.</div></div></div>`;
+  if(SELECTED){
+    const a=s.agents.find(x=>x.name===SELECTED)||{};
+    const tasks=s.tasks.filter(t=>t.agent===SELECTED);
+    const finds=s.findings.filter(f=>f.agent===SELECTED);
+    selBlock=`<div class="ipanel"><h3>${esc(a.label||SELECTED)}</h3><div class="b">
+      <div class="muted" style="font-size:11.5px">${esc(a.description||"")}</div>
+      <div style="margin:.5rem 0 .3rem"><span class="tag">${esc(STAGE_LABEL[a.stage]||a.stage||"")}</span>
+        ${a.requires_approval?'<span class="tag" style="color:var(--warn);border-color:var(--warn)">approval-gated</span>':'<span class="tag">passive</span>'}</div>
+      <div class="faint" style="font-size:10.5px;margin:.4rem 0 .2rem">TASKS (${tasks.length})</div>
+      ${tasks.map(t=>`<div class="msg"><span>${esc(t.objective)}</span><span class="st ${esc(t.status)}">${esc(t.status)}</span></div>`).join("")||'<div class="faint" style="font-size:11px">none</div>'}
+      ${finds.length?`<div class="faint" style="font-size:10.5px;margin:.5rem 0 .2rem">LINKED FINDINGS (${finds.length})</div>
+        ${finds.map(f=>`<div class="msg"><span>${esc(f.title)}</span><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span></div>`).join("")}`:""}
+    </div></div>`;
+  }
+  const msgs=s.activity.slice(-8).reverse();
+  $("#inspect").innerHTML=`
+    <div class="ipanel"><h3>Supervisor</h3>
+      <div class="sup"><div class="av">◈</div><div><b>${esc(sup.name)}</b>
+        <div class="muted" style="font-size:11px">Root · orchestrator</div></div>
+        <span class="badge" style="margin-left:auto">ROOT</span></div>
+      <div class="b" style="border-top:1px solid var(--line)">
+        <div class="msg"><span class="muted">engagement</span><span>${esc(s.engagement||"—")}</span></div>
+        <div class="msg"><span class="muted">auto-run</span><span>${s.auto_on?'<span style="color:var(--accent)">on</span>':'off'}</span></div>
+        <div class="msg"><span class="muted">audit chain</span><span style="color:${s.audit_integrity.ok?'var(--ok)':'var(--bad)'}">${esc(s.audit_integrity.detail)}</span></div>
+      </div></div>
+    ${selBlock}
+    <div class="ipanel"><h3>Recent messages</h3><div class="b">
+      ${msgs.map(a=>`<div class="msg"><span class="mono" style="color:var(--accent)">${esc(a.message)}</span><span class="faint">${ago(a.ts)}</span></div>`).join("")||'<div class="empty">—</div>'}
+    </div></div>`;
+}
+
+/* ---- top bar + nav ---- */
+function renderTop(){
+  const s=STATE,c=s.severity_counts||{};
+  $("#viewTitle").textContent=VIEW_TITLE[VIEW]||"";
+  $("#crumbView").textContent=VIEW_TITLE[VIEW]||"";
+  $("#engStatus").textContent=s.auto_on?"running":"engaged";
+  $("#engTarget").textContent=s.engagement||"—";
+  $("#sevCount").innerHTML=[["critical","crit"],["high","high"],["medium","med"],["low","low"]]
+    .map(([k])=>`<span class="s"><span class="d" style="background:var(--${k})"></span>${c[k]||0} ${k}</span>`).join("");
+  $("#nApprovals").textContent=s.approvals_pending.length;
+  $("#nSurface").textContent=s.surface.length;
+  $("#nVulns").textContent=s.findings.length;
+  $("#nAgents").textContent=s.agents.length;
+}
+function syncNav(){
+  $$(".navitem").forEach(i=>i.classList.toggle("on",i.dataset.view===VIEW));
+  $$("#viewSeg button").forEach(b=>b.classList.toggle("on",b.dataset.view===VIEW));
+}
+function go(view){ VIEW=view; SCRUB=null; stopPlay(); syncNav(); renderTop(); renderContent(); renderInspect(); }
+$$(".navitem").forEach(i=>i.onclick=()=>go(i.dataset.view));
+$$("#viewSeg button").forEach(b=>b.onclick=()=>go(b.dataset.view));
+
+/* ---- auto / live ---- */
+function setAuto(on){ AUTO=on; const b=$("#autoBtn");
+  b.textContent=on?"⏸ Pause swarm":"▶ Run swarm";
+  b.classList.toggle("primary",!on);
+  b.style.background=on?"var(--bad)":""; b.style.borderColor=on?"var(--bad)":""; b.style.color=on?"#fff":""; }
+
+async function refresh(){
+  try{
+    STATE=await (await fetch("/api/state")).json();
+    renderTop();
+    if(!(VIEW==="swarm"&&PLAYING)) renderContent();   // don't fight the scrubber
+    renderInspect();
+    setAuto(!!STATE.auto_on);
+    $("#lastUpdate").textContent="updated "+new Date().toLocaleTimeString()+(STATE.inflight?` · ${STATE.inflight} running`:"");
+  }catch(e){ $("#lastUpdate").textContent="server unreachable"; }
+}
+let _es;
+function connectStream(){
+  try{ _es=new EventSource("/api/events");
+    _es.onopen=()=>$("#liveDot").innerHTML='<span class="d" style="width:8px;height:8px;border-radius:50%;background:var(--ok)"></span>live stream';
+    _es.onmessage=()=>{ if(SCRUB==null) refresh(); };
+    _es.onerror=()=>$("#liveDot").innerHTML='<span class="d" style="width:8px;height:8px;border-radius:50%;background:var(--warn)"></span>reconnecting';
+  }catch(e){}
+}
+$("#tickBtn").onclick=async()=>{await post("/api/tick");refresh();};
+$("#autoBtn").onclick=async()=>{await post("/api/auto",{on:!AUTO});refresh();};
+$("#reportBtn").onclick=()=>window.open("/api/report","_blank");
+
+refresh(); connectStream(); setInterval(()=>{ if(SCRUB==null) refresh(); },3000);
+</script>
+</body>
+</html>
