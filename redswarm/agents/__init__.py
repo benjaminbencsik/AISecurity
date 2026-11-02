@@ -16,17 +16,35 @@ from . import header_audit      # noqa: F401
 from . import cors_audit        # noqa: F401
 from . import tech_fingerprint  # noqa: F401
 from . import subdomain_recon   # noqa: F401
+from . import wayback_urls      # noqa: F401
 from . import js_endpoints      # noqa: F401
+from . import mixed_content     # noqa: F401
 from . import open_redirect     # noqa: F401
+from . import http_methods      # noqa: F401
+from . import dir_exposure      # noqa: F401
+from . import graphql_introspection  # noqa: F401
 from . import specialists       # noqa: F401
 
-# Passive, read-only recon + checks (no payloads, no state change).
-PASSIVE_SUITE = ["subdomain_recon", "tech_fingerprint", "js_endpoints",
-                 "header_audit", "cors_audit"]
-# Light-active checks that send a benign probe (still read-only to the target).
-ACTIVE_SUITE = ["open_redirect"]
-# Default for `scan` — everything; --passive-only drops ACTIVE_SUITE.
-SCAN_SUITE = PASSIVE_SUITE + ACTIVE_SUITE
+# Scan profiles — dial intensity to the program's rules of engagement.
+#   light  : pure recon + passive read-only checks (near-zero target noise)
+#   medium : light + single benign probes to the target
+#   full   : medium + the more intrusive checks (path probing, introspection)
+SCAN_PROFILES = {
+    "light":  ["subdomain_recon", "wayback_urls", "tech_fingerprint",
+               "js_endpoints", "mixed_content", "header_audit"],
+    "medium": ["subdomain_recon", "wayback_urls", "tech_fingerprint",
+               "js_endpoints", "mixed_content", "header_audit",
+               "cors_audit", "http_methods", "open_redirect"],
+    "full":   ["subdomain_recon", "wayback_urls", "tech_fingerprint",
+               "js_endpoints", "mixed_content", "header_audit",
+               "cors_audit", "http_methods", "open_redirect",
+               "dir_exposure", "graphql_introspection"],
+}
+
+# Back-compat aliases.
+PASSIVE_SUITE = SCAN_PROFILES["light"]
+SCAN_SUITE = SCAN_PROFILES["full"]
+RECON_AGENTS = {"subdomain_recon", "wayback_urls", "tech_fingerprint", "js_endpoints"}
 
 # Register the specialist roster (the swarm's sub-agents) on import.
 specialists.register_roster()

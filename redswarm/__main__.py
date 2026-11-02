@@ -26,7 +26,7 @@ from .orchestrator import Orchestrator
 from .reporting import ReportBuilder
 from .monitor import Monitor, webhook_notifier
 from .models import Task, PTESStage
-from .agents import PASSIVE_SUITE, SCAN_SUITE
+from .agents import SCAN_PROFILES, RECON_AGENTS
 
 
 def _boot(scope_path: str, data_dir: str, rps: float):
@@ -39,13 +39,10 @@ def _boot(scope_path: str, data_dir: str, rps: float):
     return scope, store, audit, approvals, orch
 
 
-_RECON_AGENTS = {"subdomain_recon", "tech_fingerprint", "js_endpoints"}
-
-
 def _submit_suite(orch, approvals, target: str, authorize: bool, suite):
     ids = []
     for agent in suite:
-        stage = (PTESStage.INTELLIGENCE_GATHERING if agent in _RECON_AGENTS
+        stage = (PTESStage.INTELLIGENCE_GATHERING if agent in RECON_AGENTS
                  else PTESStage.VULNERABILITY_ANALYSIS)
         t = Task(objective=f"{agent} on {target}", stage=stage, agent=agent, target=target)
         orch.submit(t)
@@ -62,15 +59,17 @@ def cmd_scan(args):
     if not scope.allowed(args.target):
         print(f"[scope] {args.target} is NOT in scope — refusing.", file=sys.stderr)
         return 2
-    suite = PASSIVE_SUITE if getattr(args, "passive_only", False) else SCAN_SUITE
+    suite = SCAN_PROFILES[args.profile]
     _submit_suite(orch, approvals, args.target, args.authorize, suite)
     if not args.authorize:
-        print("Tasks submitted but gated. Re-run with --authorize to run them.")
+        print(f"[{args.profile}] tasks submitted but gated. Re-run with --authorize to run them.")
         return 0
     orch.run_until_idle()
     rb = ReportBuilder(store, scope, audit)
     confirmed = [f for f in store.all_findings() if f["status"] == "confirmed"]
-    print(f"[scan] {args.target}: {len(confirmed)} confirmed finding(s)")
+    nreview = [f for f in store.all_findings() if f["status"] == "needs_review"]
+    print(f"[scan:{args.profile}] {args.target}: {len(confirmed)} confirmed, "
+          f"{len(nreview)} needs-review")
     for f in sorted(confirmed, key=lambda x: x["severity"]):
         print(f"  [{f['severity'].upper():8}] {f['title']}")
     if args.report:
@@ -94,7 +93,8 @@ def cmd_watch(args):
             # fresh tasks each cycle; gated passive suite auto-approved by --authorize
             for a in list(approvals.pending()):
                 approvals.deny(a["id"], note="superseded by new watch cycle")
-            _submit_suite(orch, approvals, args.target, args.authorize, SCAN_SUITE)
+            _submit_suite(orch, approvals, args.target, args.authorize,
+                          SCAN_PROFILES[args.profile])
             orch.run_until_idle()
             d = mon.diff()
             if d.get("baseline"):
@@ -135,19 +135,21 @@ def main(argv=None):
     sv.add_argument("--port", type=int, default=8700)
     sv.set_defaults(fn=cmd_serve)
 
-    sc = sub.add_parser("scan", help="run the passive suite once")
+    sc = sub.add_parser("scan", help="run a scan profile once")
     sc.add_argument("--scope", required=True)
     sc.add_argument("--target", required=True)
+    sc.add_argument("--profile", choices=["light", "medium", "full"], default="medium",
+                    help="intensity: light=recon only, medium=+benign probes, full=+intrusive")
     sc.add_argument("--authorize", action="store_true",
-                    help="assert written authorization; approves gated passive tasks")
+                    help="assert written authorization; approves the gated tasks")
     sc.add_argument("--report", help="write a Markdown report to this path")
-    sc.add_argument("--passive-only", action="store_true",
-                    help="skip light-active checks (open_redirect)")
     sc.set_defaults(fn=cmd_scan)
 
     wt = sub.add_parser("watch", help="monitor a target on an interval and diff")
     wt.add_argument("--scope", required=True)
     wt.add_argument("--target", required=True)
+    wt.add_argument("--profile", choices=["light", "medium", "full"], default="light",
+                    help="intensity per sweep (default light for continuous monitoring)")
     wt.add_argument("--authorize", action="store_true")
     wt.add_argument("--interval", type=int, default=900, help="seconds between sweeps")
     wt.add_argument("--webhook", help="POST new findings to this URL (e.g. Slack)")

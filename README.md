@@ -69,13 +69,13 @@ Run the whole thing headless with `python -m examples.demo_run --no-ui`.
 # the command center
 python -m redswarm serve --scope scope.json
 
-# one passive, read-only sweep of an authorized target
+# a scan at a chosen intensity (light | medium | full)
 python -m redswarm scan  --scope scope.json --target https://app.example.com/ \
-    --authorize --report out.md
+    --profile medium --authorize --report out.md
 
 # continuous monitoring: re-sweep on an interval, diff, alert on new surface
 python -m redswarm watch --scope scope.json --target https://app.example.com/ \
-    --authorize --interval 900 --webhook https://hooks.slack.com/...
+    --profile light --authorize --interval 900 --webhook https://hooks.slack.com/...
 ```
 
 `--authorize` is you asserting written authorization for every in-scope target;
@@ -86,28 +86,39 @@ code) halts the swarm instantly, and every request is **rate-limited per host**
 
 ### The passive suite (real, working modules)
 
-`scan`/`watch` run these modules — each emitting findings with evidence.
+### Scan profiles
 
-**Passive (read-only recon & checks — no payloads, no state change):**
+`scan`/`watch` take `--profile` to dial intensity to the program's rules:
 
-| module | checks |
-|---|---|
-| `subdomain_recon` | subdomain discovery via Certificate Transparency (crt.sh); OSINT, no target contact |
-| `tech_fingerprint` | stack headers + robots.txt / sitemap.xml disclosed paths |
-| `js_endpoints` | endpoints/API routes + possible leaked secrets mined from page JavaScript |
-| `header_audit` | missing/weak HTTP security headers |
-| `cors_audit` | reflected / over-permissive Access-Control-Allow-Origin |
+| profile | what runs | target contact |
+|---|---|---|
+| **light** | recon + passive read-only checks | GETs only; OSINT where possible |
+| **medium** (scan default) | light + single benign probes | one crafted request per check |
+| **full** | medium + intrusive checks | path probing, introspection POST |
 
-**Light-active (one benign probe to the target; still read-only):**
+`watch` defaults to **light** (quiet continuous monitoring). Every module is
+scope- and approval-gated and rate-limited regardless of profile.
 
-| module | checks |
-|---|---|
-| `open_redirect` | one off-domain probe per redirect param, no redirect followed; confirms only on an actual external 3xx |
+### Modules
 
-`scan` runs passive + active by default; `--passive-only` drops the active set.
-`js_endpoints` secret hits are emitted as **needs-review** (noisy class — you
-confirm), and `subdomain_recon` only maps in-scope hosts, feeding the monitor
-diff so new subdomains alert the moment a certificate for them is logged.
+| module | profile | checks |
+|---|---|---|
+| `subdomain_recon` | light | subdomain discovery via Certificate Transparency (crt.sh); OSINT, no target contact |
+| `wayback_urls` | light | historical URLs from the Wayback Machine; OSINT, feeds open_redirect candidates |
+| `tech_fingerprint` | light | stack headers + robots.txt / sitemap.xml disclosed paths |
+| `js_endpoints` | light | endpoints/API routes + possible leaked secrets mined from page JavaScript |
+| `mixed_content` | light | http:// subresources loaded by an HTTPS page |
+| `header_audit` | light | missing/weak HTTP security headers |
+| `cors_audit` | medium | reflected / over-permissive Access-Control-Allow-Origin |
+| `http_methods` | medium | OPTIONS Allow header → risky verbs (PUT/DELETE/TRACE) |
+| `open_redirect` | medium | one off-domain probe per redirect param; confirms only on an actual external 3xx |
+| `dir_exposure` | full | curated sensitive paths (.git/.env/backups) with a negative-control baseline to kill catch-all false positives |
+| `graphql_introspection` | full | read-only introspection query to common GraphQL paths |
+
+Noisy classes (`js_endpoints` secrets, `http_methods`) are emitted as
+**needs-review**, not confirmed — you verify. `subdomain_recon` / `wayback_urls`
+only map in-scope hosts, feeding the monitor diff so new surface alerts the
+moment it appears.
 
 ### Monitoring
 

@@ -69,18 +69,21 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 def safe_get(scope: ScopeGuard, url: str, limiter: RateLimiter | None = None,
              headers: dict | None = None, timeout: int = 10,
              max_body: int = _MAX_BODY, method: str = "GET",
-             allow_redirects: bool = True) -> HttpResult:
-    """Scope-checked, rate-limited, read-only request. Raises on scope violation;
-    network errors are returned as {'error': ...} so callers can report gracefully.
+             allow_redirects: bool = True, data: bytes | None = None) -> HttpResult:
+    """Scope-checked, rate-limited request. Raises on scope violation; network
+    errors are returned as {'error': ...} so callers can report gracefully.
     With allow_redirects=False, a 3xx is returned as-is (with its Location) instead
-    of being followed."""
+    of being followed. `data` turns it into a POST (used for a read-only probe
+    such as a GraphQL introspection query)."""
     if "://" not in url:
         url = "https://" + url
     scope.assert_in_scope(url)
     host = urlparse(url).hostname or ""
     if limiter:
         limiter.acquire(host)
-    req = urllib.request.Request(url, method=method,
+    if data is not None and method == "GET":
+        method = "POST"
+    req = urllib.request.Request(url, method=method, data=data,
                                  headers={"User-Agent": _UA, **(headers or {})})
     opener = (urllib.request.build_opener(_NoRedirect)
               if not allow_redirects else urllib.request.build_opener())
