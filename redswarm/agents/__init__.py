@@ -29,6 +29,11 @@ from . import open_redirect     # noqa: F401
 from . import http_methods      # noqa: F401
 from . import dir_exposure      # noqa: F401
 from . import graphql_introspection  # noqa: F401
+from . import csp_analyzer      # noqa: F401
+from . import jwt_analyzer      # noqa: F401
+from . import sourcemap_exposure  # noqa: F401
+from . import api_docs_exposure   # noqa: F401
+from . import wildcard_dns      # noqa: F401
 from . import specialists       # noqa: F401
 
 # Full recon methodology → vuln checks, grouped by intensity.
@@ -36,11 +41,12 @@ from . import specialists       # noqa: F401
 #   medium : light + probing of discovered hosts and single benign probes
 #   full   : medium + the more intrusive checks (path probing, introspection)
 _RECON_LIGHT = ["subdomain_recon", "wayback_urls", "dns_enum", "email_security",
-                "tech_fingerprint", "favicon_hash", "js_endpoints",
-                "param_discovery", "mixed_content", "header_audit"]
+                "wildcard_dns", "tech_fingerprint", "favicon_hash", "js_endpoints",
+                "param_discovery", "mixed_content", "header_audit", "csp_analyzer",
+                "jwt_analyzer", "sourcemap_exposure"]
 _PROBE_MEDIUM = ["host_liveness", "subdomain_takeover", "cors_audit",
                  "http_methods", "open_redirect"]
-_INTRUSIVE_FULL = ["dir_exposure", "graphql_introspection"]
+_INTRUSIVE_FULL = ["dir_exposure", "graphql_introspection", "api_docs_exposure"]
 SCAN_PROFILES = {
     "light":  list(_RECON_LIGHT),
     "medium": _RECON_LIGHT + _PROBE_MEDIUM,
@@ -56,11 +62,13 @@ AGENT_DEPS = {
     "subdomain_takeover": ["subdomain_recon", "dns_enum"],
     "param_discovery":    ["wayback_urls", "js_endpoints"],
     "open_redirect":      ["param_discovery"],
+    "sourcemap_exposure": ["js_endpoints"],
+    "api_docs_exposure":  ["js_endpoints"],
 }
 
 # Agents whose natural target is a domain/host rather than a single URL.
 RECON_AGENTS = {"subdomain_recon", "wayback_urls", "dns_enum", "email_security",
-                "tech_fingerprint", "favicon_hash", "js_endpoints",
+                "wildcard_dns", "tech_fingerprint", "favicon_hash", "js_endpoints",
                 "param_discovery", "host_liveness", "subdomain_takeover"}
 
 # Back-compat aliases.

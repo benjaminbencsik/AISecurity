@@ -123,8 +123,16 @@ map; consumers read from it, and the orchestrator runs them in dependency order
 | `cors_audit` | medium | check | reflected / over-permissive Access-Control-Allow-Origin |
 | `http_methods` | medium | check | OPTIONS Allow header → risky verbs (PUT/DELETE/TRACE) |
 | `open_redirect` | medium | check | one off-domain probe per redirect param; confirms on an actual external 3xx |
+| `wildcard_dns` | light | recon | detects wildcard DNS so subdomain results can be discounted |
+| `csp_analyzer` | light | check | weak CSP directives: unsafe-inline / unsafe-eval / wildcard script sources |
+| `jwt_analyzer` | light | check | decodes JWTs the app returns: alg=none, missing/long expiry, sensitive claims (token redacted) |
+| `sourcemap_exposure` | light | check | publicly downloadable JS source maps that leak original source |
 | `dir_exposure` | full | check | curated sensitive paths (.git/.env/backups) with a negative-control baseline |
 | `graphql_introspection` | full | check | read-only introspection query to common GraphQL paths |
+| `api_docs_exposure` | full | check | public Swagger/OpenAPI specs and GraphQL IDEs, signature + catch-all checked |
+
+JWT analysis is decode-only: it never verifies, forges, or replays a token, and
+it redacts tokens in evidence so reports don't carry live credentials.
 
 Zero-dependency DNS is built in (`redswarm/dns.py`, UDP resolver; set
 `REDSWARM_DNS` to override). Noisy classes (`js_endpoints` secrets,
