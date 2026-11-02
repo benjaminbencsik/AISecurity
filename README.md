@@ -99,26 +99,38 @@ code) halts the swarm instantly, and every request is **rate-limited per host**
 `watch` defaults to **light** (quiet continuous monitoring). Every module is
 scope- and approval-gated and rate-limited regardless of profile.
 
-### Modules
+### Recon methodology → checks
 
-| module | profile | checks |
-|---|---|---|
-| `subdomain_recon` | light | subdomain discovery via Certificate Transparency (crt.sh); OSINT, no target contact |
-| `wayback_urls` | light | historical URLs from the Wayback Machine; OSINT, feeds open_redirect candidates |
-| `tech_fingerprint` | light | stack headers + robots.txt / sitemap.xml disclosed paths |
-| `js_endpoints` | light | endpoints/API routes + possible leaked secrets mined from page JavaScript |
-| `mixed_content` | light | http:// subresources loaded by an HTTPS page |
-| `header_audit` | light | missing/weak HTTP security headers |
-| `cors_audit` | medium | reflected / over-permissive Access-Control-Allow-Origin |
-| `http_methods` | medium | OPTIONS Allow header → risky verbs (PUT/DELETE/TRACE) |
-| `open_redirect` | medium | one off-domain probe per redirect param; confirms only on an actual external 3xx |
-| `dir_exposure` | full | curated sensitive paths (.git/.env/backups) with a negative-control baseline to kill catch-all false positives |
-| `graphql_introspection` | full | read-only introspection query to common GraphQL paths |
+A full recon pipeline feeds the checks. Producers fill the shared attack-surface
+map; consumers read from it, and the orchestrator runs them in dependency order
+(`dns_enum` after `subdomain_recon`, `host_liveness`/`subdomain_takeover` after
+`dns_enum`, `open_redirect` after `param_discovery`, …).
 
-Noisy classes (`js_endpoints` secrets, `http_methods`) are emitted as
-**needs-review**, not confirmed — you verify. `subdomain_recon` / `wayback_urls`
-only map in-scope hosts, feeding the monitor diff so new surface alerts the
-moment it appears.
+| module | profile | stage | checks |
+|---|---|---|---|
+| `subdomain_recon` | light | recon | subdomain discovery via Certificate Transparency (crt.sh); OSINT |
+| `wayback_urls` | light | recon | historical URLs from the Wayback Machine; OSINT |
+| `dns_enum` | light | recon | A/AAAA/CNAME/MX/NS/TXT for domain + discovered subdomains |
+| `email_security` | light | recon | SPF/DMARC/DKIM posture → spoofing exposure |
+| `tech_fingerprint` | light | recon | stack headers + robots.txt / sitemap.xml paths |
+| `favicon_hash` | light | recon | Shodan mmh3 favicon hash for asset correlation |
+| `js_endpoints` | light | recon | endpoints/API routes + possible leaked secrets from JS |
+| `param_discovery` | light | recon | parameter inventory from collected URLs (feeds redirect/IDOR) |
+| `mixed_content` | light | check | http:// subresources on an HTTPS page |
+| `header_audit` | light | check | missing/weak HTTP security headers |
+| `host_liveness` | medium | recon | probe discovered subdomains for live HTTP(S) (httpx-style) |
+| `subdomain_takeover` | medium | check | dangling CNAMEs to unclaimed services (provider fingerprints) |
+| `cors_audit` | medium | check | reflected / over-permissive Access-Control-Allow-Origin |
+| `http_methods` | medium | check | OPTIONS Allow header → risky verbs (PUT/DELETE/TRACE) |
+| `open_redirect` | medium | check | one off-domain probe per redirect param; confirms on an actual external 3xx |
+| `dir_exposure` | full | check | curated sensitive paths (.git/.env/backups) with a negative-control baseline |
+| `graphql_introspection` | full | check | read-only introspection query to common GraphQL paths |
+
+Zero-dependency DNS is built in (`redswarm/dns.py`, UDP resolver; set
+`REDSWARM_DNS` to override). Noisy classes (`js_endpoints` secrets,
+`http_methods`) are emitted **needs-review**, not confirmed — you verify.
+Discovery modules only map in-scope hosts, feeding the monitor diff so new
+surface alerts the moment it appears.
 
 ### Monitoring
 

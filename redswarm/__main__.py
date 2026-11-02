@@ -26,7 +26,7 @@ from .orchestrator import Orchestrator
 from .reporting import ReportBuilder
 from .monitor import Monitor, webhook_notifier
 from .models import Task, PTESStage
-from .agents import SCAN_PROFILES, RECON_AGENTS
+from .agents import SCAN_PROFILES, RECON_AGENTS, AGENT_DEPS
 
 
 def _boot(scope_path: str, data_dir: str, rps: float):
@@ -40,18 +40,36 @@ def _boot(scope_path: str, data_dir: str, rps: float):
 
 
 def _submit_suite(orch, approvals, target: str, authorize: bool, suite):
+    """Submit a suite, wiring producer→consumer dependencies so recon that reads
+    the shared attack-surface map runs after the recon that fills it."""
+    in_suite = set(suite)
+    task_by_agent: dict[str, str] = {}
     ids = []
+    # submit in suite order (already producers-before-consumers), resolving deps
     for agent in suite:
         stage = (PTESStage.INTELLIGENCE_GATHERING if agent in RECON_AGENTS
                  else PTESStage.VULNERABILITY_ANALYSIS)
-        t = Task(objective=f"{agent} on {target}", stage=stage, agent=agent, target=target)
+        deps = [task_by_agent[d] for d in AGENT_DEPS.get(agent, [])
+                if d in in_suite and d in task_by_agent]
+        t = Task(objective=f"{agent} on {target}", stage=stage, agent=agent,
+                 target=target, depends_on=deps)
         orch.submit(t)
+        task_by_agent[agent] = t.id
         ids.append(t.id)
-    if authorize:
-        for a in approvals.pending():
-            approvals.approve(a["id"], operator="cli --authorize",
-                              note="operator authorized via CLI")
     return ids
+
+
+def _drain(orch, approvals, authorize, max_rounds: int = 60):
+    """Tick to completion, auto-approving gated tasks as they become ready
+    (dependencies unblock consumers mid-run)."""
+    for _ in range(max_rounds):
+        if authorize:
+            for a in approvals.pending():
+                approvals.approve(a["id"], operator="cli --authorize",
+                                  note="operator authorized via CLI")
+        summary = orch.tick()
+        if summary["dispatched"] == 0 and not (authorize and approvals.pending()):
+            break
 
 
 def cmd_scan(args):
@@ -64,7 +82,7 @@ def cmd_scan(args):
     if not args.authorize:
         print(f"[{args.profile}] tasks submitted but gated. Re-run with --authorize to run them.")
         return 0
-    orch.run_until_idle()
+    _drain(orch, approvals, args.authorize)
     rb = ReportBuilder(store, scope, audit)
     confirmed = [f for f in store.all_findings() if f["status"] == "confirmed"]
     nreview = [f for f in store.all_findings() if f["status"] == "needs_review"]
@@ -95,7 +113,7 @@ def cmd_watch(args):
                 approvals.deny(a["id"], note="superseded by new watch cycle")
             _submit_suite(orch, approvals, args.target, args.authorize,
                           SCAN_PROFILES[args.profile])
-            orch.run_until_idle()
+            _drain(orch, approvals, args.authorize)
             d = mon.diff()
             if d.get("baseline"):
                 print(f"[watch] baseline: {d['surface_total']} assets")

@@ -17,7 +17,13 @@ from . import cors_audit        # noqa: F401
 from . import tech_fingerprint  # noqa: F401
 from . import subdomain_recon   # noqa: F401
 from . import wayback_urls      # noqa: F401
+from . import dns_enum          # noqa: F401
+from . import email_security    # noqa: F401
+from . import favicon_hash      # noqa: F401
 from . import js_endpoints      # noqa: F401
+from . import param_discovery   # noqa: F401
+from . import host_liveness     # noqa: F401
+from . import subdomain_takeover  # noqa: F401
 from . import mixed_content     # noqa: F401
 from . import open_redirect     # noqa: F401
 from . import http_methods      # noqa: F401
@@ -25,26 +31,41 @@ from . import dir_exposure      # noqa: F401
 from . import graphql_introspection  # noqa: F401
 from . import specialists       # noqa: F401
 
-# Scan profiles — dial intensity to the program's rules of engagement.
-#   light  : pure recon + passive read-only checks (near-zero target noise)
-#   medium : light + single benign probes to the target
+# Full recon methodology → vuln checks, grouped by intensity.
+#   light  : passive recon + read-only checks (OSINT, DNS, passive parse)
+#   medium : light + probing of discovered hosts and single benign probes
 #   full   : medium + the more intrusive checks (path probing, introspection)
+_RECON_LIGHT = ["subdomain_recon", "wayback_urls", "dns_enum", "email_security",
+                "tech_fingerprint", "favicon_hash", "js_endpoints",
+                "param_discovery", "mixed_content", "header_audit"]
+_PROBE_MEDIUM = ["host_liveness", "subdomain_takeover", "cors_audit",
+                 "http_methods", "open_redirect"]
+_INTRUSIVE_FULL = ["dir_exposure", "graphql_introspection"]
 SCAN_PROFILES = {
-    "light":  ["subdomain_recon", "wayback_urls", "tech_fingerprint",
-               "js_endpoints", "mixed_content", "header_audit"],
-    "medium": ["subdomain_recon", "wayback_urls", "tech_fingerprint",
-               "js_endpoints", "mixed_content", "header_audit",
-               "cors_audit", "http_methods", "open_redirect"],
-    "full":   ["subdomain_recon", "wayback_urls", "tech_fingerprint",
-               "js_endpoints", "mixed_content", "header_audit",
-               "cors_audit", "http_methods", "open_redirect",
-               "dir_exposure", "graphql_introspection"],
+    "light":  list(_RECON_LIGHT),
+    "medium": _RECON_LIGHT + _PROBE_MEDIUM,
+    "full":   _RECON_LIGHT + _PROBE_MEDIUM + _INTRUSIVE_FULL,
 }
+
+# Producer → consumer ordering within a scan: a consumer runs only after the
+# producers that fill the attack-surface map it reads from.
+AGENT_DEPS = {
+    "dns_enum":           ["subdomain_recon"],
+    "email_security":     [],
+    "host_liveness":      ["subdomain_recon", "dns_enum"],
+    "subdomain_takeover": ["subdomain_recon", "dns_enum"],
+    "param_discovery":    ["wayback_urls", "js_endpoints"],
+    "open_redirect":      ["param_discovery"],
+}
+
+# Agents whose natural target is a domain/host rather than a single URL.
+RECON_AGENTS = {"subdomain_recon", "wayback_urls", "dns_enum", "email_security",
+                "tech_fingerprint", "favicon_hash", "js_endpoints",
+                "param_discovery", "host_liveness", "subdomain_takeover"}
 
 # Back-compat aliases.
 PASSIVE_SUITE = SCAN_PROFILES["light"]
 SCAN_SUITE = SCAN_PROFILES["full"]
-RECON_AGENTS = {"subdomain_recon", "wayback_urls", "tech_fingerprint", "js_endpoints"}
 
 # Register the specialist roster (the swarm's sub-agents) on import.
 specialists.register_roster()
