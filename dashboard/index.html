@@ -194,6 +194,7 @@
           <button class="btn" id="reportBtn">Report</button>
           <button class="btn" id="tickBtn">▶ Tick once</button>
           <button class="btn primary" id="autoBtn">▶ Run swarm</button>
+          <button class="btn" id="stopBtn" style="border-color:var(--bad);color:var(--bad);font-weight:700">■ STOP</button>
         </div>
       </div>
     </header>
@@ -478,7 +479,9 @@ function renderTop(){
   const s=STATE,c=s.severity_counts||{};
   $("#viewTitle").textContent=VIEW_TITLE[VIEW]||"";
   $("#crumbView").textContent=VIEW_TITLE[VIEW]||"";
-  $("#engStatus").textContent=s.auto_on?"running":"engaged";
+  $("#engStatus").textContent=s.halted?"HALTED":(s.auto_on?"running":"engaged");
+  $("#engStatus").style.color=s.halted?"var(--bad)":"";
+  $("#engStatus").style.borderColor=s.halted?"var(--bad)":"";
   $("#engTarget").textContent=s.engagement||"—";
   $("#sevCount").innerHTML=[["critical","crit"],["high","high"],["medium","med"],["low","low"]]
     .map(([k])=>`<span class="s"><span class="d" style="background:var(--${k})"></span>${c[k]||0} ${k}</span>`).join("");
@@ -521,6 +524,7 @@ function connectStream(){
 }
 $("#tickBtn").onclick=async()=>{await post("/api/tick");refresh();};
 $("#autoBtn").onclick=async()=>{await post("/api/auto",{on:!AUTO});refresh();};
+$("#stopBtn").onclick=async()=>{await post("/api/stop");refresh();};
 $("#reportBtn").onclick=()=>window.open("/api/report","_blank");
 
 refresh(); connectStream(); setInterval(()=>{ if(SCRUB==null) refresh(); },3000);

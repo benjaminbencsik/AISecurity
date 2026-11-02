@@ -18,6 +18,12 @@ class AgentContext:
     scope: ScopeGuard
     audit: AuditLog
     store: Store
+    limiter: object = None   # redswarm.net.RateLimiter (optional)
+
+    def get(self, url: str, **kw):
+        """Scope-checked, rate-limited, read-only GET. Use this for any request."""
+        from ..net import safe_get
+        return safe_get(self.scope, url, limiter=self.limiter, **kw)
 
     def add_finding(self, finding: Finding) -> None:
         self.store.save_finding(finding)

@@ -63,6 +63,47 @@ python -m examples.demo_run          # seeds a swarm engagement, then serves the
 Zero runtime dependencies — Python 3.10+ stdlib only.
 Run the whole thing headless with `python -m examples.demo_run --no-ui`.
 
+## Running it against a real target (CLI)
+
+```bash
+# the command center
+python -m redswarm serve --scope scope.json
+
+# one passive, read-only sweep of an authorized target
+python -m redswarm scan  --scope scope.json --target https://app.example.com/ \
+    --authorize --report out.md
+
+# continuous monitoring: re-sweep on an interval, diff, alert on new surface
+python -m redswarm watch --scope scope.json --target https://app.example.com/ \
+    --authorize --interval 900 --webhook https://hooks.slack.com/...
+```
+
+`--authorize` is you asserting written authorization for every in-scope target;
+it's the CLI equivalent of approving the gated passive tasks. Out-of-scope
+targets are refused. A global **kill-switch** (STOP in the UI, `stop_all()` in
+code) halts the swarm instantly, and every request is **rate-limited per host**
+(`--rps`, default 5/s) to respect program throttle rules.
+
+### The passive suite (real, working modules)
+
+`scan`/`watch` run these read-only modules — no payloads, no auth, no state
+change — each emitting confirmed findings with evidence:
+
+| module | checks |
+|---|---|
+| `tech_fingerprint` | stack headers + robots.txt / sitemap.xml disclosed paths |
+| `header_audit` | missing/weak HTTP security headers |
+| `cookie_audit` | Set-Cookie flags (Secure / HttpOnly / SameSite) |
+| `cors_audit` | reflected / over-permissive Access-Control-Allow-Origin |
+| `tls_audit` | cert expiry, hostname/chain, legacy protocol |
+
+### Monitoring
+
+`watch` snapshots the attack surface each cycle and diffs it against the last
+run, so **new assets and new confirmed findings surface the moment they appear**
+— optionally POSTed to a Slack/Discord webhook. This is the continuous-recon
+loop, kept scope-bound and rate-limited.
+
 ## Layout
 
 ```

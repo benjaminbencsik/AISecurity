@@ -37,14 +37,17 @@ from .agents.base import AgentContext, build_agents
 
 class Orchestrator:
     def __init__(self, scope: ScopeGuard, store: Store, audit: AuditLog,
-                 approvals: ApprovalQueue, max_workers: int = 6):
+                 approvals: ApprovalQueue, max_workers: int = 6, rps: float = 5.0):
         self.scope = scope
         self.store = store
         self.audit = audit
         self.approvals = approvals
         self.max_workers = max_workers
-        self.ctx = AgentContext(scope=scope, audit=audit, store=store)
+        from .net import RateLimiter
+        self.limiter = RateLimiter(rps=rps, burst=max(1, int(rps)))
+        self.ctx = AgentContext(scope=scope, audit=audit, store=store, limiter=self.limiter)
         self.agents = build_agents(self.ctx)
+        self._halt = threading.Event()   # kill-switch
 
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers,
                                                            thread_name_prefix="swarm")
@@ -171,11 +174,39 @@ class Orchestrator:
             with self._dispatch_lock:
                 self._inflight.pop(task.id, None)
 
+    # -- kill-switch ------------------------------------------------------
+    def stop_all(self, reason: str = "operator kill-switch") -> dict:
+        """Halt immediately: stop auto-run, block new dispatch, and cancel every
+        task still waiting in the pool. Running agents finish their current call
+        (we can't force-kill a thread), but nothing new starts."""
+        self._halt.set()
+        self.stop_auto()
+        cancelled = 0
+        with self._dispatch_lock:
+            for tid, fut in list(self._inflight.items()):
+                if fut.cancel():
+                    cancelled += 1
+                    self._inflight.pop(tid, None)
+        self.audit.log("operator", "kill_switch", "", "",
+                       {"reason": reason, "cancelled": cancelled})
+        return {"halted": True, "cancelled": cancelled,
+                "still_running": self.inflight_count()}
+
+    def resume(self) -> None:
+        self._halt.clear()
+        self.audit.log("operator", "kill_switch_cleared", "", "", {})
+
+    @property
+    def halted(self) -> bool:
+        return self._halt.is_set()
+
     def pump(self) -> int:
         """Non-blocking: unblock what can run, dispatch every ready task onto the
         pool, and return how many were dispatched this call. Marks each task
         RUNNING synchronously before submitting so it can't be double-dispatched.
         """
+        if self._halt.is_set():
+            return 0
         with self._dispatch_lock:
             self._refresh_statuses()
             dispatched = 0

@@ -53,6 +53,7 @@ class CommandCenter:
             "engagement": self.scope.scope.name,
             "scope": self.scope.summary(),
             "auto_on": self.orch.auto_on,
+            "halted": self.orch.halted,
             "inflight": self.orch.inflight_count(),
             "supervisor": {"name": "Root Supervisor", "role": "root"},
             "agents": [
@@ -145,8 +146,15 @@ def make_handler(cc: CommandCenter):
                 self._json(cc.orch.tick())
             elif self.path == "/api/auto":
                 on = bool(self._read_json().get("on", True))
+                if on and cc.orch.halted:
+                    cc.orch.resume()
                 cc.orch.start_auto() if on else cc.orch.stop_auto()
                 self._json({"auto_on": cc.orch.auto_on})
+            elif self.path == "/api/stop":
+                self._json(cc.orch.stop_all())
+            elif self.path == "/api/resume":
+                cc.orch.resume()
+                self._json({"halted": cc.orch.halted})
             elif self.path == "/api/approvals/approve":
                 b = self._read_json()
                 res = cc.approvals.approve(b.get("id", ""), b.get("operator", "operator"),
