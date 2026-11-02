@@ -134,6 +134,32 @@ map; consumers read from it, and the orchestrator runs them in dependency order
 JWT analysis is decode-only: it never verifies, forges, or replays a token, and
 it redacts tokens in evidence so reports don't carry live credentials.
 
+### Real scanners: nuclei and archive-driven scanning
+
+| module | profile | what it does |
+|---|---|---|
+| `nuclei_scan` | medium, full | runs [ProjectDiscovery nuclei](https://github.com/projectdiscovery/nuclei) templates against the target. Medium tags: exposure, misconfig, tech, takeover, token. Full adds cve and vuln. |
+| `wayback_scan` | full | runs nuclei across in-scope parameterized URLs from the Wayback archive and recon. Deduplicated by path and parameter names, capped at 200. |
+
+Install nuclei and its templates on the machine that runs RedSwarm:
+
+```bash
+go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+nuclei -ut          # download templates
+```
+
+Set `REDSWARM_NUCLEI=/path/to/nuclei` if it's not on PATH. Set
+`REDSWARM_NUCLEI_TEMPLATES` to use a specific templates directory.
+
+Safety defaults on every nuclei run:
+- `-ni`: no interactsh, so no out-of-band callbacks go to third-party servers.
+- `-duc`: no implicit update check.
+- Redirects are not followed.
+- `dos`, `fuzz`, `brute-force` and `default-login` tags are always excluded.
+- Requests are rate-limited by `--rps`.
+- Every matched URL is re-checked against scope, and out-of-scope matches are dropped.
+- Matches are recorded as **needs-review**, not confirmed. You verify each one by hand.
+
 Zero-dependency DNS is built in (`redswarm/dns.py`, UDP resolver; set
 `REDSWARM_DNS` to override). Noisy classes (`js_endpoints` secrets,
 `http_methods`) are emitted **needs-review**, not confirmed — you verify.

@@ -34,6 +34,8 @@ from . import jwt_analyzer      # noqa: F401
 from . import sourcemap_exposure  # noqa: F401
 from . import api_docs_exposure   # noqa: F401
 from . import wildcard_dns      # noqa: F401
+from . import nuclei_scan       # noqa: F401
+from . import wayback_scan      # noqa: F401
 from . import specialists       # noqa: F401
 
 # Full recon methodology → vuln checks, grouped by intensity.
@@ -45,8 +47,9 @@ _RECON_LIGHT = ["subdomain_recon", "wayback_urls", "dns_enum", "email_security",
                 "param_discovery", "mixed_content", "header_audit", "csp_analyzer",
                 "jwt_analyzer", "sourcemap_exposure"]
 _PROBE_MEDIUM = ["host_liveness", "subdomain_takeover", "cors_audit",
-                 "http_methods", "open_redirect"]
-_INTRUSIVE_FULL = ["dir_exposure", "graphql_introspection", "api_docs_exposure"]
+                 "http_methods", "open_redirect", "nuclei_scan"]
+_INTRUSIVE_FULL = ["dir_exposure", "graphql_introspection", "api_docs_exposure",
+                   "wayback_scan"]
 SCAN_PROFILES = {
     "light":  list(_RECON_LIGHT),
     "medium": _RECON_LIGHT + _PROBE_MEDIUM,
@@ -64,6 +67,7 @@ AGENT_DEPS = {
     "open_redirect":      ["param_discovery"],
     "sourcemap_exposure": ["js_endpoints"],
     "api_docs_exposure":  ["js_endpoints"],
+    "wayback_scan":       ["wayback_urls", "param_discovery"],
 }
 
 # Agents whose natural target is a domain/host rather than a single URL.

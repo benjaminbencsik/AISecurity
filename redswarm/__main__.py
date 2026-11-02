@@ -39,7 +39,7 @@ def _boot(scope_path: str, data_dir: str, rps: float):
     return scope, store, audit, approvals, orch
 
 
-def _submit_suite(orch, approvals, target: str, authorize: bool, suite):
+def _submit_suite(orch, approvals, target: str, authorize: bool, suite, profile: str = "medium"):
     """Submit a suite, wiring producer→consumer dependencies so recon that reads
     the shared attack-surface map runs after the recon that fills it."""
     in_suite = set(suite)
@@ -52,7 +52,7 @@ def _submit_suite(orch, approvals, target: str, authorize: bool, suite):
         deps = [task_by_agent[d] for d in AGENT_DEPS.get(agent, [])
                 if d in in_suite and d in task_by_agent]
         t = Task(objective=f"{agent} on {target}", stage=stage, agent=agent,
-                 target=target, depends_on=deps)
+                 target=target, depends_on=deps, params={"profile": profile})
         orch.submit(t)
         task_by_agent[agent] = t.id
         ids.append(t.id)
@@ -78,7 +78,7 @@ def cmd_scan(args):
         print(f"[scope] {args.target} is NOT in scope — refusing.", file=sys.stderr)
         return 2
     suite = SCAN_PROFILES[args.profile]
-    _submit_suite(orch, approvals, args.target, args.authorize, suite)
+    _submit_suite(orch, approvals, args.target, args.authorize, suite, profile=args.profile)
     if not args.authorize:
         print(f"[{args.profile}] tasks submitted but gated. Re-run with --authorize to run them.")
         return 0
@@ -112,7 +112,7 @@ def cmd_watch(args):
             for a in list(approvals.pending()):
                 approvals.deny(a["id"], note="superseded by new watch cycle")
             _submit_suite(orch, approvals, args.target, args.authorize,
-                          SCAN_PROFILES[args.profile])
+                          SCAN_PROFILES[args.profile], profile=args.profile)
             _drain(orch, approvals, args.authorize)
             d = mon.diff()
             if d.get("baseline"):

@@ -19,6 +19,7 @@ class AgentContext:
     audit: AuditLog
     store: Store
     limiter: object = None   # redswarm.net.RateLimiter (optional)
+    rps: float = 5.0         # per-host requests/sec, passed to external tools (nuclei -rl)
 
     def get(self, url: str, **kw):
         """Scope-checked, rate-limited, read-only GET. Use this for any request."""

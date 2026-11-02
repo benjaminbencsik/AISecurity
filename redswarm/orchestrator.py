@@ -45,7 +45,8 @@ class Orchestrator:
         self.max_workers = max_workers
         from .net import RateLimiter
         self.limiter = RateLimiter(rps=rps, burst=max(1, int(rps)))
-        self.ctx = AgentContext(scope=scope, audit=audit, store=store, limiter=self.limiter)
+        self.ctx = AgentContext(scope=scope, audit=audit, store=store,
+                                limiter=self.limiter, rps=rps)
         self.agents = build_agents(self.ctx)
         self._halt = threading.Event()   # kill-switch
 
