@@ -42,6 +42,10 @@ def _boot(scope_path: str, data_dir: str, rps: float):
 def _submit_suite(orch, approvals, target: str, authorize: bool, suite, profile: str = "medium"):
     """Submit a suite, wiring producer→consumer dependencies so recon that reads
     the shared attack-surface map runs after the recon that fills it."""
+    from .easy import _host, _is_ip
+    from .agents import DOMAIN_ONLY
+    if _is_ip(_host(target)):
+        suite = [a for a in suite if a not in DOMAIN_ONLY]
     in_suite = set(suite)
     task_by_agent: dict[str, str] = {}
     ids = []
@@ -173,8 +177,49 @@ def main(argv=None):
     wt.add_argument("--webhook", help="POST new findings to this URL (e.g. Slack)")
     wt.set_defaults(fn=cmd_watch)
 
+    # ---- easy mode -------------------------------------------------------
+    from . import easy, vps
+
+    dr = sub.add_parser("doctor", help="check your setup")
+    dr.add_argument("--scope", default="scope.json")
+    dr.set_defaults(fn=easy.doctor_cmd)
+    ini = sub.add_parser("init", help="interactively write scope.json")
+    ini.add_argument("--scope", default="scope.json")
+    ini.set_defaults(fn=lambda a: easy.init_cmd(a))
+
+    go = sub.add_parser("go", help="one command: scope + scan + report for one target")
+    go.add_argument("target", help="URL or host you are authorized to test")
+    go.add_argument("--profile", choices=["light", "medium", "full"], default="light")
+    go.add_argument("--wildcard", action="store_true",
+                    help="also include *.host in scope (subdomains)")
+    go.add_argument("--yes", action="store_true",
+                    help="skip the typed authorization prompt (you accept responsibility)")
+    go.add_argument("--via", metavar="USER@HOST",
+                    help="run the scan on this VPS over ssh instead of locally")
+    go.add_argument("--port", type=int, help="ssh port for --via")
+    go.add_argument("--remote-dir", default="redswarm", help="project folder on the VPS")
+    go.set_defaults(fn=easy.go_cmd)
+
+    vp = sub.add_parser("vps", help="set up and use a VPS over ssh")
+    vsub = vp.add_subparsers(dest="vps_cmd", required=True)
+    vs = vsub.add_parser("setup", help="copy the project to a VPS and run its doctor")
+    vs.add_argument("via", metavar="USER@HOST")
+    vs.add_argument("--port", type=int)
+    vs.add_argument("--remote-dir", default="redswarm")
+    vs.set_defaults(fn=lambda a: vps.setup(a.via, a.port, a.remote_dir))
+    vt = vsub.add_parser("tunnel", help="forward the VPS dashboard to localhost:8700")
+    vt.add_argument("via", metavar="USER@HOST")
+    vt.add_argument("--port", type=int)
+    vt.add_argument("--local-port", type=int, default=8700)
+    vt.set_defaults(fn=lambda a: vps.tunnel(a.via, a.port, a.local_port))
+
     args = p.parse_args(argv)
     return args.fn(args)
+
+
+def entry():
+    """Console-script entry point (see pyproject.toml)."""
+    raise SystemExit(main())
 
 
 if __name__ == "__main__":

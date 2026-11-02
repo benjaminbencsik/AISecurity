@@ -12,6 +12,41 @@ scaffolds; you plug in your own modules and your own PoCs, and the framework's
 job is to keep them inside the rules of engagement and make every result
 traceable.
 
+## Quick start
+
+```bash
+./install.sh                              # checks Python, offers to install nuclei
+python3 -m redswarm go https://YOUR-AUTHORIZED-TARGET/
+```
+
+`go` builds a scope for that one host, asks you to type that you have written
+authorization, runs a scan, and writes a report to `reports/`. Use
+`--profile medium` for more coverage (nuclei checks). Use `--wildcard` to include
+subdomains. Use `--yes` to skip the prompt in scripts.
+
+Other commands:
+
+| command | does |
+|---|---|
+| `python3 -m redswarm doctor` | checks Python, nuclei, templates and the data folder |
+| `python3 -m redswarm init` | interactively writes a `scope.json` for several hosts or ranges |
+| `python3 -m redswarm serve --scope scope.json` | opens the dashboard at http://127.0.0.1:8700 |
+
+### Run it on a VPS
+
+Scans can run from a VPS instead of your machine. This uses your existing SSH
+key and config, and nothing is stored in RedSwarm.
+
+```bash
+python3 -m redswarm vps setup user@your-vps                          # copy the project up, run doctor there
+python3 -m redswarm go https://YOUR-AUTHORIZED-TARGET/ --via user@your-vps   # scan there, report back here
+python3 -m redswarm vps tunnel user@your-vps                         # dashboard at http://127.0.0.1:8700
+```
+
+The VPS needs key-based SSH login and Python 3.10+. The dashboard stays bound
+to 127.0.0.1 on the VPS and you reach it through the tunnel. The VPS keeps its
+own database and audit log. Only the report is copied back.
+
 ## Command center
 
 A single-file, zero-dependency console (`dashboard/index.html`) served by the

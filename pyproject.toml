@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redswarm"
+version = "0.2.0"
+description = "Human-in-the-loop recon and scan framework for authorized security testing"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+redswarm = "redswarm.__main__:entry"
+
+[tool.setuptools.packages.find]
+include = ["redswarm*"]

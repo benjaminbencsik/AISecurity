@@ -70,6 +70,11 @@ AGENT_DEPS = {
     "wayback_scan":       ["wayback_urls", "param_discovery"],
 }
 
+# Agents that need a domain name. They are skipped when the target is a bare IP,
+# so a scan of 1.2.3.4 doesn't query certificate logs or DNS for "1.2.3.4".
+DOMAIN_ONLY = {"subdomain_recon", "wayback_urls", "dns_enum", "email_security",
+               "wildcard_dns", "subdomain_takeover"}
+
 # Agents whose natural target is a domain/host rather than a single URL.
 RECON_AGENTS = {"subdomain_recon", "wayback_urls", "dns_enum", "email_security",
                 "wildcard_dns", "tech_fingerprint", "favicon_hash", "js_endpoints",
