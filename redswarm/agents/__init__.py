@@ -12,6 +12,7 @@ Your own modules go beside them.
 from .base import BaseAgent, AgentContext, register, REGISTRY, build_agents
 from . import asset_catalog  # noqa: F401  (registers on import)
 from . import http_probe     # noqa: F401
+from . import header_audit   # noqa: F401
 from . import specialists    # noqa: F401
 
 # Register the specialist roster (the swarm's sub-agents) on import.

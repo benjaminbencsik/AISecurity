@@ -60,9 +60,12 @@ def build_graph(orch, store):
     web = T("web_app", PTESStage.VULNERABILITY_ANALYSIS, "web app analysis", deps=[tmodel.id])
     api = T("api_identity", PTESStage.VULNERABILITY_ANALYSIS, "API & auth analysis", deps=[tmodel.id])
     cloud = T("cloud_security", PTESStage.VULNERABILITY_ANALYSIS, "cloud posture review", deps=[tmodel.id])
+    hdr = T("header_audit", PTESStage.VULNERABILITY_ANALYSIS,
+            "passive security-header audit (gated)",
+            target="http://127.0.0.1:8081/login", deps=[tmodel.id])
     triage = T("vuln_triage", PTESStage.VULNERABILITY_ANALYSIS, "triage candidate vulns",
                deps=[web.id, api.id])
-    vuln = [web, api, cloud, triage]
+    vuln = [web, api, cloud, hdr, triage]
     # Exploitation — ACTIVE, approval-gated
     exval = T("exploitation_validation", PTESStage.EXPLOITATION,
               "validate exploitability (gated)", deps=[triage.id])

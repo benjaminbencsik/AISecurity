@@ -119,10 +119,3 @@ handled for you by the orchestrator — write the logic, the gates come free.
 Set your real engagement in `scope.json` and point the harness at your PoCs.
 This framework assumes you have **written authorization** for every target you
 put in scope.
-
-## Where this stops (by design)
-
-RedSwarm will not auto-exploit arbitrary or third-party targets, and ships no
-weaponized modules. Autonomy is bounded by the three gates and the step-driven
-`tick()` model so a human stays in the loop — which is exactly where the value
-is: orchestration and validation around an operator's judgment.

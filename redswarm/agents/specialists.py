@@ -30,19 +30,29 @@ _ROSTER = [
     ("network_infra", "Network & Infrastructure", PTESStage.INTELLIGENCE_GATHERING, False),
     # Threat modeling
     ("threat_model", "Threat Modeling", PTESStage.THREAT_MODELING, False),
+    ("subdomain_enum", "Subdomain Enumeration", PTESStage.INTELLIGENCE_GATHERING, False),
     # Vulnerability analysis
     ("web_app", "Web Application", PTESStage.VULNERABILITY_ANALYSIS, False),
     ("api_identity", "API & Identity", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("auth_session", "Auth & Session", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("business_logic", "Business Logic", PTESStage.VULNERABILITY_ANALYSIS, False),
     ("cloud_security", "Cloud Security", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("container_security", "Container & K8s", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("cicd_security", "CI/CD Security", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("secrets_hygiene", "Secrets & Credentials", PTESStage.VULNERABILITY_ANALYSIS, False),
     ("mobile_security", "Mobile Security", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("ai_security", "AI / LLM Security", PTESStage.VULNERABILITY_ANALYSIS, False),
     ("source_review", "Source Code Review", PTESStage.VULNERABILITY_ANALYSIS, False),
+    ("reverse_engineering", "Reverse Engineering", PTESStage.VULNERABILITY_ANALYSIS, False),
     ("vuln_triage", "Vulnerability Triage", PTESStage.VULNERABILITY_ANALYSIS, False),
     # Exploitation (active — gated)
     ("exploitation_validation", "Exploitation Validation", PTESStage.EXPLOITATION, True),
     ("ad_security", "Active Directory", PTESStage.EXPLOITATION, True),
     ("windows_security", "Windows Security", PTESStage.EXPLOITATION, True),
+    ("privilege_escalation", "Privilege Escalation", PTESStage.EXPLOITATION, True),
     # Post-exploitation (active — gated)
     ("post_exploitation", "Post-Exploitation", PTESStage.POST_EXPLOITATION, True),
+    ("lateral_movement", "Lateral Movement", PTESStage.POST_EXPLOITATION, True),
     ("forensics", "Forensics", PTESStage.POST_EXPLOITATION, False),
     # Reporting
     ("bug_bounty", "Bug Bounty Hunter", PTESStage.REPORTING, False),

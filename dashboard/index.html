@@ -242,17 +242,23 @@ function nodeStatus(name, tasks){
 
 /* ---- swarm graph ---- */
 function layout(nodes){
-  const W=1000, topY=118, bandH=94, cardW=132, cardH=40, gap=22;
+  const W=1060, topY=116, cardW=126, cardH=38, gapX=18, gapY=14, bandGap=30;
+  const maxRowW = W-40;
+  const perRow = Math.max(1, Math.floor((maxRowW+gapX)/(cardW+gapX)));
   const byStage={}; STAGES.forEach(s=>byStage[s]=[]);
   nodes.forEach(n=> (byStage[n.stage]||(byStage[n.stage]=[])).push(n));
   const bands = STAGES.filter(s=>byStage[s].length);
   let y=topY;
   bands.forEach(s=>{
     const row=byStage[s];
-    const tw=row.length*cardW+(row.length-1)*gap;
-    let x=(W-tw)/2;
-    row.forEach(n=>{ n.x=x;n.y=y;n.w=cardW;n.h=cardH; x+=cardW+gap; });
-    y+=bandH;
+    for(let i=0;i<row.length;i+=perRow){
+      const r=row.slice(i,i+perRow);
+      const tw=r.length*cardW+(r.length-1)*gapX;
+      let x=(W-tw)/2;
+      r.forEach(n=>{ n.x=x;n.y=y;n.w=cardW;n.h=cardH; x+=cardW+gapX; });
+      y+=cardH+gapY;
+    }
+    y+=bandGap-gapY;
   });
   return {W,H:y+10,bands,byStage,root:{x:W/2-72,y:40,w:144,h:40}};
 }
